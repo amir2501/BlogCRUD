@@ -1,10 +1,8 @@
-import express from "express";
-import bodyParser from "body-parser";
-import axios from "axios";
+const express = require("express");
+const bodyParser = require("body-parser");
 
 const app = express();
-const frontendPort = 1000;
-const backendPort = 5050;
+const port = 5050;
 
 // In-memory data store
 let posts = [
@@ -36,87 +34,59 @@ let posts = [
 
 let lastId = 3;
 
-app.use(express.static("public"));
-app.use(bodyParser.urlencoded({ extended: true }));
+// Middleware
 app.use(bodyParser.json());
+app.use(bodyParser.urlencoded({ extended: true }));
 
-// Serve frontend
-app.get("/", async (req, res) => {
-  try {
-    res.render("index.ejs", { posts });
-  } catch (error) {
-    res.status(500).json({ message: "Error rendering page" });
-  }
-});
-
-// Render new post page
-app.get("/new", (req, res) => {
-  res.render("modify.ejs", { heading: "New Post", submit: "Create Post" });
-});
-
-// Render edit post page
-app.get("/edit/:id", async (req, res) => {
-  const id = parseInt(req.params.id);
-  const post = posts.find((p) => p.id === id);
-  if (!post) return res.status(404).json({ message: "Post not found" });
-
-  res.render("modify.ejs", {
-    heading: "Edit Post",
-    submit: "Update Post",
-    post,
-  });
-});
-
-// Backend API Routes
-
-// Get all posts
+//GET All posts
 app.get("/posts", (req, res) => {
   res.json(posts);
 });
-
-// Get a specific post by ID
+//GET a specific post by id
 app.get("/posts/:id", (req, res) => {
   const id = parseInt(req.params.id);
-  const post = posts.find((p) => p.id === id);
-  if (!post) return res.status(404).json({ message: "Post not found" });
-
-  res.json(post);
+  res.json(posts[id - 1]);
 });
-
-// Create a new post
+//POST a new post
 app.post("/posts", (req, res) => {
   const newPost = {
-    id: ++lastId,
+    id: lastId + 1,
     title: req.body.title,
     content: req.body.content,
     author: req.body.author,
-    date: new Date().toISOString(),
+    date: req.body.date,
   };
-
   posts.push(newPost);
-  res.redirect("/");
+  lastId++;
+  res.json(posts);
 });
-
-// Update a post
+//PATCH a post when you just want to update one parameter
 app.patch("/posts/:id", (req, res) => {
   const id = parseInt(req.params.id);
-  const post = posts.find((p) => p.id === id);
-  if (!post) return res.status(404).json({ message: "Post not found" });
-
-  post.title = req.body.title || post.title;
-  post.content = req.body.content || post.content;
-  post.author = req.body.author || post.author;
-  res.json(post);
+  const existingPost = posts.find((post) => post.id === id);
+  const replacementPost = {
+    id: id,
+    title: req.body.title || existingPost.title,
+    content: req.body.content || existingPost.content,
+    author: req.body.author || existingPost.author,
+  };
+  const searchIndex = posts.findIndex((post) => post.id === id);
+  posts[searchIndex] = replacementPost;
+  res.json(replacementPost);
 });
-
-// Delete a post
-app.get("/api/posts/delete/:id", (req, res) => {
+//DELETE a specific post by providing the post id.
+app.delete("/posts/:id", (req, res) => {
   const id = parseInt(req.params.id);
-  posts = posts.filter((post) => post.id !== id);
-  res.redirect("/");
+  const searchIndex = posts.findIndex((post) => post.id === id);
+  if (searchIndex > -1) {
+    posts.splice(searchIndex, 1);
+    res.sendStatus(200);
+  } else {
+    res
+        .status(404)
+        .json({ error: `post with id: ${id} not found. No posts were deleted.` });
+  }
 });
-
-// Start the server
-app.listen(frontendPort, () => {
-  console.log(`Server is running at http://localhost:${frontendPort}`);
+app.listen(port, () => {
+  console.log(`API is running at http://localhost:${port}`);
 });
